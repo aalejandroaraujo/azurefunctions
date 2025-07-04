@@ -185,35 +185,47 @@ async def risk_escalation_check(req: func.HttpRequest) -> func.HttpResponse:
 # --- 4. switch_chat_mode ---
 @app.function_name(name="switch_chat_mode")
 @app.route(route="switch_chat_mode", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
-def switch_chat_mode(req: func.HttpRequest) -> func.HttpResponse:
+async def switch_chat_mode(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Processing switch_chat_mode request')
     try:
         req_body = req.get_json()
         if not req_body:
             return func.HttpResponse(json.dumps({"status": "error", "message": "Request body is required."}), status_code=400, mimetype="application/json")
         session_id = req_body.get("session_id")
         context = req_body.get("context")
+        logging.info(f"Processing chat mode switch for session: {session_id}")
         if not session_id:
             return func.HttpResponse(json.dumps({"status": "error", "message": "Missing required 'session_id' field."}), status_code=400, mimetype="application/json")
         if not context or not isinstance(context, str):
             return func.HttpResponse(json.dumps({"status": "error", "message": "Missing or invalid 'context' field."}), status_code=400, mimetype="application/json")
+        if len(context.strip()) == 0:
+            return func.HttpResponse(json.dumps({"status": "error", "message": "Context cannot be empty."}), status_code=400, mimetype="application/json")
+        if len(context) > 4000:  # Reasonable limit for context
+            context = context[:4000]
         client = get_openai_client()
         system_prompt = (
             "You are a conversation controller for a mental health assistant. "
             "Based on the user's last message, decide whether the assistant should continue asking intake questions, switch to advice-giving, enter reflective discussion, or summarize and close. "
             "Only return the most appropriate chat mode: intake, advice, reflection, or summary."
         )
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context}
             ],
             max_tokens=10,
-            temperature=0.1
+            temperature=0.1,
+            timeout=10
         )
-        new_mode = response.choices[0].message.content.strip().lower()
+        new_mode = response.choices[0].message.content
+        if not new_mode:
+            new_mode = "advice"  # Default fallback
+        else:
+            new_mode = new_mode.strip().lower()
         if new_mode not in ["intake", "advice", "reflection", "summary"]:
             new_mode = "advice"
+        logging.info(f"Chat mode determined for session {session_id}: {new_mode}")
         return func.HttpResponse(json.dumps({"status": "ok", "new_mode": new_mode}), status_code=200, mimetype="application/json")
     except ValueError:
         return func.HttpResponse(json.dumps({"status": "error", "message": "Invalid JSON in request body."}), status_code=400, mimetype="application/json")
