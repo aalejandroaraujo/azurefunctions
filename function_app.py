@@ -203,6 +203,7 @@ async def switch_chat_mode(req: func.HttpRequest) -> func.HttpResponse:
         if len(context) > 4000:  # Reasonable limit for context
             context = context[:4000]
         client = get_openai_client()
+        logging.info(f"Client type: {type(client)}")
         system_prompt = (
             "You are a conversation controller for a mental health assistant. "
             "Based on the user's last message, decide whether the assistant should continue asking intake questions, switch to advice-giving, enter reflective discussion, or summarize and close. "
@@ -218,6 +219,7 @@ async def switch_chat_mode(req: func.HttpRequest) -> func.HttpResponse:
             temperature=0.1,
             timeout=10
         )
+        logging.info(f"Response type: {type(response)}")
         new_mode = response.choices[0].message.content
         if not new_mode:
             new_mode = "advice"  # Default fallback
