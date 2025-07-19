@@ -81,6 +81,7 @@ jobs:
         id: deploy-to-function
         with:
           app-name: 'expertfuncapp001-ch-bbdyewf4hyg3bec6'
+          resource-group: 'DefaultResourceGroup-CH'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
           
